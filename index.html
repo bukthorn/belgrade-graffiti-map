@@ -23,19 +23,86 @@
       width: 100%;
       height: 100vh;
     }
+
+    .popup-title {
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    .popup-row {
+      margin-bottom: 4px;
+    }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhpOdfbetAkVGXD_6hKYAEDtuS2yzQfCX3yR-4YubijnBSIaGnByVcmK1LZQ0Nyotn0MiwiJ-8xyjv/pub?gid=0&single=true&output=csv';
+
     const map = L.map('map').setView([44.8125, 20.4612], 13);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
+
+    function escapeHtml(value) {
+      if (!value) return '';
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function createPopupContent(item) {
+      const originalText = escapeHtml(item.original_text);
+      const possibleMeaning = escapeHtml(item.possible_meaning);
+      const tags = escapeHtml(item.tags);
+
+      return `
+        <div>
+          <div class="popup-title">${originalText || 'Untitled graffiti'}</div>
+
+          ${possibleMeaning ? `
+            <div class="popup-row">
+              <strong>Possible meaning:</strong> ${possibleMeaning}
+            </div>
+          ` : ''}
+
+          ${tags ? `
+            <div class="popup-row">
+              <strong>Tags:</strong> ${tags}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    Papa.parse(CSV_URL, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: function(results) {
+        results.data.forEach(item => {
+          const lat = parseFloat(item.latitude);
+          const lng = parseFloat(item.longitude);
+
+          if (Number.isNaN(lat) || Number.isNaN(lng)) {
+            return;
+          }
+
+          L.marker([lat, lng])
+            .addTo(map)
+            .bindPopup(createPopupContent(item));
+        });
+      }
+    });
   </script>
 </body>
 </html>
