@@ -17,7 +17,7 @@
       padding: 0;
       height: 100%;
       font-family: Arial, sans-serif;
-      background: #111;
+      background: #f4f4f1;
     }
 
     #map {
@@ -26,13 +26,14 @@
     }
 
     .leaflet-popup-content-wrapper {
-      background: #171717;
-      color: #f2f2f2;
+      background: #ffffff;
+      color: #1f1f1f;
       border-radius: 12px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
     }
 
     .leaflet-popup-tip {
-      background: #171717;
+      background: #ffffff;
     }
 
     .popup-title {
@@ -48,11 +49,11 @@
 
     .tag {
       display: inline-block;
-      padding: 2px 6px;
+      padding: 2px 7px;
       margin: 2px 4px 2px 0;
       border-radius: 999px;
-      background: #2b2b2b;
-      color: #ddd;
+      background: #eeeeee;
+      color: #333333;
       font-size: 12px;
     }
 
@@ -61,60 +62,19 @@
       z-index: 1000;
       top: 12px;
       left: 50px;
-      background: rgba(20, 20, 20, 0.88);
-      color: #eee;
-      padding: 8px 10px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #222;
+      padding: 10px 12px;
       border-radius: 10px;
       font-size: 12px;
-      max-width: 320px;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+      max-width: 380px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      line-height: 1.45;
     }
 
-    .graffiti-marker {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      box-sizing: border-box;
-      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35), 0 4px 12px rgba(0, 0, 0, 0.45);
-    }
-
-    .marker-politics {
-      background: #8b5a2b;
-      border: 2px solid #d1a06a;
-    }
-
-    .marker-football {
-      position: relative;
-      background: #f5f5f5;
-      border: 3px solid #111;
-    }
-
-    .marker-football::before {
-      content: "";
-      position: absolute;
-      width: 8px;
-      height: 8px;
-      left: 4px;
-      top: 4px;
-      background: #111;
-      border-radius: 50%;
-    }
-
-    .marker-football::after {
-      content: "";
-      position: absolute;
-      width: 16px;
-      height: 2px;
-      left: 1px;
-      top: 10px;
-      background: #111;
-      transform: rotate(-25deg);
-      opacity: 0.9;
-    }
-
-    .marker-default {
-      background: #777;
-      border: 2px solid #ddd;
+    .custom-graffiti-icon {
+      background: transparent;
+      border: none;
     }
   </style>
 </head>
@@ -133,7 +93,8 @@
 
     const map = L.map('map').setView([44.8084, 20.4773], 16);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    // Light minimalistic CARTO basemap
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
       subdomains: 'abcd',
       maxZoom: 20
@@ -148,6 +109,27 @@
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+    }
+
+    function cleanHeader(header) {
+      return String(header || '')
+        .replace(/^\uFEFF/, '')
+        .trim()
+        .toLowerCase();
+    }
+
+    function cleanValue(value) {
+      return typeof value === 'string' ? value.trim() : value;
+    }
+
+    function parseCsv(csvText, delimiter = '') {
+      return Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter: delimiter,
+        transformHeader: cleanHeader,
+        transform: cleanValue
+      });
     }
 
     function normalizeTag(tag) {
@@ -165,27 +147,38 @@
         .filter(Boolean);
     }
 
-    function getMarkerClass(tags) {
-      if (tags.includes('football')) {
-        return 'marker-football';
-      }
-
-      if (tags.includes('politics')) {
-        return 'marker-politics';
-      }
-
-      return 'marker-default';
-    }
-
     function createMarkerIcon(tags) {
-      const markerClass = getMarkerClass(tags);
+      let svg = '';
+
+      if (tags.includes('football')) {
+        svg = `
+          <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="15" cy="15" r="12" fill="#f7f7f7" stroke="#111111" stroke-width="3"/>
+            <circle cx="15" cy="15" r="4" fill="#111111"/>
+            <path d="M7 11 L23 19" stroke="#111111" stroke-width="2" stroke-linecap="round"/>
+            <path d="M23 11 L7 19" stroke="#111111" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        `;
+      } else if (tags.includes('politics')) {
+        svg = `
+          <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="15" cy="15" r="12" fill="#8b5a2b" stroke="#d1a06a" stroke-width="3"/>
+          </svg>
+        `;
+      } else {
+        svg = `
+          <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="15" cy="15" r="12" fill="#777777" stroke="#eeeeee" stroke-width="3"/>
+          </svg>
+        `;
+      }
 
       return L.divIcon({
-        className: '',
-        html: `<div class="graffiti-marker ${markerClass}"></div>`,
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
-        popupAnchor: [0, -12]
+        className: 'custom-graffiti-icon',
+        html: svg,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+        popupAnchor: [0, -15]
       });
     }
 
@@ -219,15 +212,40 @@
       `;
     }
 
+    function parseCoordinate(value) {
+      if (value === null || value === undefined) return NaN;
+
+      return parseFloat(
+        String(value)
+          .trim()
+          .replace(',', '.')
+      );
+    }
+
     function renderGraffitiItems(items) {
       let validPointsCount = 0;
       const bounds = [];
 
+      const firstRow = items[0] || {};
+      const columns = Object.keys(firstRow).join(', ');
+
+      console.log('CSV columns:', Object.keys(firstRow));
+      console.log('First row:', firstRow);
+      console.log('All rows:', items);
+
       items.forEach(item => {
-        const lat = parseFloat(String(item.latitude || '').replace(',', '.'));
-        const lng = parseFloat(String(item.longitude || '').replace(',', '.'));
+        const rawLat = item.latitude;
+        const rawLng = item.longitude;
+
+        const lat = parseCoordinate(rawLat);
+        const lng = parseCoordinate(rawLng);
 
         if (Number.isNaN(lat) || Number.isNaN(lng)) {
+          console.warn('Invalid coordinates:', {
+            row: item,
+            rawLat,
+            rawLng
+          });
           return;
         }
 
@@ -246,7 +264,10 @@
       debugPanel.innerHTML = `
         CSV loaded<br>
         Rows: ${items.length}<br>
-        Valid points: ${validPointsCount}
+        Valid points: ${validPointsCount}<br>
+        Columns: ${escapeHtml(columns)}<br>
+        First latitude: ${escapeHtml(firstRow.latitude || 'not found')}<br>
+        First longitude: ${escapeHtml(firstRow.longitude || 'not found')}
       `;
 
       if (bounds.length > 0) {
@@ -267,16 +288,29 @@
 
         const csvText = await response.text();
 
-        const parsed = Papa.parse(csvText, {
-          header: true,
-          skipEmptyLines: true
-        });
+        // First try: normal CSV from Google Sheets
+        let parsed = parseCsv(csvText);
+
+        let firstRow = parsed.data[0] || {};
+        let hasCoordinates =
+          Object.prototype.hasOwnProperty.call(firstRow, 'latitude') &&
+          Object.prototype.hasOwnProperty.call(firstRow, 'longitude');
+
+        // Fallback: if data was inserted as text separated by |
+        if (!hasCoordinates) {
+          console.warn('Normal CSV parsing did not find latitude/longitude. Trying pipe delimiter...');
+          parsed = parseCsv(csvText, '|');
+          firstRow = parsed.data[0] || {};
+
+          hasCoordinates =
+            Object.prototype.hasOwnProperty.call(firstRow, 'latitude') &&
+            Object.prototype.hasOwnProperty.call(firstRow, 'longitude');
+        }
 
         if (parsed.errors.length) {
           console.warn('CSV parsing errors:', parsed.errors);
         }
 
-        console.log('Parsed CSV:', parsed.data);
         renderGraffitiItems(parsed.data);
       } catch (error) {
         console.error(error);
