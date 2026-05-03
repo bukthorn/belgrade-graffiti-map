@@ -17,6 +17,7 @@
       padding: 0;
       height: 100%;
       font-family: Arial, sans-serif;
+      background: #111;
     }
 
     #map {
@@ -24,18 +25,102 @@
       height: 100vh;
     }
 
+    .leaflet-popup-content-wrapper {
+      background: #171717;
+      color: #f2f2f2;
+      border-radius: 12px;
+    }
+
+    .leaflet-popup-tip {
+      background: #171717;
+    }
+
     .popup-title {
-      font-weight: bold;
-      margin-bottom: 6px;
+      font-weight: 700;
+      font-size: 15px;
+      margin-bottom: 8px;
     }
 
     .popup-row {
-      margin-bottom: 4px;
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 6px;
+      margin: 2px 4px 2px 0;
+      border-radius: 999px;
+      background: #2b2b2b;
+      color: #ddd;
+      font-size: 12px;
+    }
+
+    .debug-panel {
+      position: absolute;
+      z-index: 1000;
+      top: 12px;
+      left: 50px;
+      background: rgba(20, 20, 20, 0.88);
+      color: #eee;
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      max-width: 320px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    .graffiti-marker {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      box-sizing: border-box;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35), 0 4px 12px rgba(0, 0, 0, 0.45);
+    }
+
+    .marker-politics {
+      background: #8b5a2b;
+      border: 2px solid #d1a06a;
+    }
+
+    .marker-football {
+      position: relative;
+      background: #f5f5f5;
+      border: 3px solid #111;
+    }
+
+    .marker-football::before {
+      content: "";
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      left: 4px;
+      top: 4px;
+      background: #111;
+      border-radius: 50%;
+    }
+
+    .marker-football::after {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 2px;
+      left: 1px;
+      top: 10px;
+      background: #111;
+      transform: rotate(-25deg);
+      opacity: 0.9;
+    }
+
+    .marker-default {
+      background: #777;
+      border: 2px solid #ddd;
     }
   </style>
 </head>
 
 <body>
+  <div id="debug" class="debug-panel">Loading CSV...</div>
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -44,14 +129,19 @@
   <script>
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhpOdfbetAkVGXD_6hKYAEDtuS2yzQfCX3yR-4YubijnBSIaGnByVcmK1LZQ0Nyotn0MiwiJ-8xyjv/pub?gid=0&single=true&output=csv';
 
-    const map = L.map('map').setView([44.8125, 20.4612], 13);
+    const debugPanel = document.getElementById('debug');
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
+    const map = L.map('map').setView([44.8084, 20.4773], 16);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      subdomains: 'abcd',
+      maxZoom: 20
     }).addTo(map);
 
     function escapeHtml(value) {
       if (!value) return '';
+
       return String(value)
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
@@ -60,10 +150,53 @@
         .replaceAll("'", '&#039;');
     }
 
+    function normalizeTag(tag) {
+      return String(tag || '')
+        .trim()
+        .toLowerCase();
+    }
+
+    function getTags(item) {
+      if (!item.tags) return [];
+
+      return String(item.tags)
+        .split(',')
+        .map(normalizeTag)
+        .filter(Boolean);
+    }
+
+    function getMarkerClass(tags) {
+      if (tags.includes('football')) {
+        return 'marker-football';
+      }
+
+      if (tags.includes('politics')) {
+        return 'marker-politics';
+      }
+
+      return 'marker-default';
+    }
+
+    function createMarkerIcon(tags) {
+      const markerClass = getMarkerClass(tags);
+
+      return L.divIcon({
+        className: '',
+        html: `<div class="graffiti-marker ${markerClass}"></div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+        popupAnchor: [0, -12]
+      });
+    }
+
     function createPopupContent(item) {
       const originalText = escapeHtml(item.original_text);
       const possibleMeaning = escapeHtml(item.possible_meaning);
-      const tags = escapeHtml(item.tags);
+      const tags = getTags(item);
+
+      const tagsHtml = tags
+        .map(tag => `<span class="tag">${escapeHtml(tag)}</span>`)
+        .join('');
 
       return `
         <div>
@@ -71,38 +204,91 @@
 
           ${possibleMeaning ? `
             <div class="popup-row">
-              <strong>Possible meaning:</strong> ${possibleMeaning}
+              <strong>Possible meaning:</strong><br>
+              ${possibleMeaning}
             </div>
           ` : ''}
 
-          ${tags ? `
+          ${tags.length ? `
             <div class="popup-row">
-              <strong>Tags:</strong> ${tags}
+              <strong>Tags:</strong><br>
+              ${tagsHtml}
             </div>
           ` : ''}
         </div>
       `;
     }
 
-    Papa.parse(CSV_URL, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: function(results) {
-        results.data.forEach(item => {
-          const lat = parseFloat(item.latitude);
-          const lng = parseFloat(item.longitude);
+    function renderGraffitiItems(items) {
+      let validPointsCount = 0;
+      const bounds = [];
 
-          if (Number.isNaN(lat) || Number.isNaN(lng)) {
-            return;
-          }
+      items.forEach(item => {
+        const lat = parseFloat(String(item.latitude || '').replace(',', '.'));
+        const lng = parseFloat(String(item.longitude || '').replace(',', '.'));
 
-          L.marker([lat, lng])
-            .addTo(map)
-            .bindPopup(createPopupContent(item));
+        if (Number.isNaN(lat) || Number.isNaN(lng)) {
+          return;
+        }
+
+        const tags = getTags(item);
+
+        L.marker([lat, lng], {
+          icon: createMarkerIcon(tags)
+        })
+          .addTo(map)
+          .bindPopup(createPopupContent(item));
+
+        bounds.push([lat, lng]);
+        validPointsCount += 1;
+      });
+
+      debugPanel.innerHTML = `
+        CSV loaded<br>
+        Rows: ${items.length}<br>
+        Valid points: ${validPointsCount}
+      `;
+
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, {
+          padding: [60, 60],
+          maxZoom: 17
         });
       }
-    });
+    }
+
+    async function loadCsv() {
+      try {
+        const response = await fetch(CSV_URL);
+
+        if (!response.ok) {
+          throw new Error(`CSV request failed: ${response.status}`);
+        }
+
+        const csvText = await response.text();
+
+        const parsed = Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true
+        });
+
+        if (parsed.errors.length) {
+          console.warn('CSV parsing errors:', parsed.errors);
+        }
+
+        console.log('Parsed CSV:', parsed.data);
+        renderGraffitiItems(parsed.data);
+      } catch (error) {
+        console.error(error);
+
+        debugPanel.innerHTML = `
+          CSV loading error<br>
+          ${escapeHtml(error.message)}
+        `;
+      }
+    }
+
+    loadCsv();
   </script>
 </body>
 </html>
