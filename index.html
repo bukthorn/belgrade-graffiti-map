@@ -61,6 +61,11 @@
       border: 3px solid #d1a06a;
     }
 
+    .marker-religion {
+      background: #f2c94c;
+      border: 3px solid #ffffff;
+    }
+    
     .marker-default {
       background: #777777;
       border: 3px solid #eeeeee;
@@ -207,6 +212,10 @@
 
       if (tags.includes('politics')) {
         return 'marker-politics';
+      }
+
+      if (tags.includes('religion')) {
+        return 'marker-religion';
       }
 
       return 'marker-default';
