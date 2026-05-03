@@ -7,8 +7,8 @@
   <title>Belgrade Graffiti Map</title>
 
   <link
+    href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css"
     rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   />
 
   <style>
@@ -25,15 +25,52 @@
       height: 100vh;
     }
 
-    .leaflet-popup-content-wrapper {
-      background: #ffffff;
-      color: #1f1f1f;
-      border-radius: 12px;
-      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+    .debug-panel {
+      position: absolute;
+      z-index: 10;
+      top: 12px;
+      left: 12px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #222;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      max-width: 380px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      line-height: 1.45;
     }
 
-    .leaflet-popup-tip {
-      background: #ffffff;
+    .graffiti-marker {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      box-sizing: border-box;
+      cursor: pointer;
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.8),
+        0 4px 14px rgba(0, 0, 0, 0.28);
+    }
+
+    .marker-football {
+      background: #2e7d32;
+      border: 3px solid #ffffff;
+    }
+
+    .marker-politics {
+      background: #8b5a2b;
+      border: 3px solid #d1a06a;
+    }
+
+    .marker-default {
+      background: #777777;
+      border: 3px solid #eeeeee;
+    }
+
+    .popup-content {
+      font-family: Arial, sans-serif;
+      color: #1f1f1f;
+      min-width: 180px;
+      max-width: 260px;
     }
 
     .popup-title {
@@ -43,8 +80,9 @@
     }
 
     .popup-row {
-      margin-bottom: 6px;
+      margin-bottom: 7px;
       line-height: 1.4;
+      font-size: 13px;
     }
 
     .tag {
@@ -57,24 +95,15 @@
       font-size: 12px;
     }
 
-    .debug-panel {
-      position: absolute;
-      z-index: 1000;
-      top: 12px;
-      left: 50px;
-      background: rgba(255, 255, 255, 0.92);
-      color: #222;
-      padding: 10px 12px;
-      border-radius: 10px;
-      font-size: 12px;
-      max-width: 380px;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-      line-height: 1.45;
+    .maplibregl-popup-content {
+      border-radius: 12px;
+      padding: 12px 14px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
     }
 
-    .custom-graffiti-icon {
-      background: transparent;
-      border: none;
+    .maplibregl-popup-close-button {
+      font-size: 18px;
+      padding: 4px 7px;
     }
   </style>
 </head>
@@ -83,7 +112,7 @@
   <div id="debug" class="debug-panel">Loading CSV...</div>
   <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
@@ -91,14 +120,38 @@
 
     const debugPanel = document.getElementById('debug');
 
-    const map = L.map('map').setView([44.8084, 20.4773], 16);
+    const map = new maplibregl.Map({
+      container: 'map',
+      center: [20.4773, 44.8084], // MapLibre uses [longitude, latitude]
+      zoom: 15.5,
+      style: {
+        version: 8,
+        sources: {
+          cartoLight: {
+            type: 'raster',
+            tiles: [
+              'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+          }
+        },
+        layers: [
+          {
+            id: 'carto-light-layer',
+            type: 'raster',
+            source: 'cartoLight',
+            minzoom: 0,
+            maxzoom: 20
+          }
+        ]
+      }
+    });
 
-    // Light minimalistic CARTO basemap
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 20
-    }).addTo(map);
+    map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
     function escapeHtml(value) {
       if (!value) return '';
@@ -147,31 +200,22 @@
         .filter(Boolean);
     }
 
-    function createMarkerIcon(tags) {
-      let fillColor = '#777777';
-      let strokeColor = '#eeeeee';
-    
+    function getMarkerClass(tags) {
       if (tags.includes('football')) {
-        fillColor = '#2e7d32'; // green
-        strokeColor = '#ffffff';
-      } else if (tags.includes('politics')) {
-        fillColor = '#8b5a2b'; // brown
-        strokeColor = '#d1a06a';
+        return 'marker-football';
       }
-    
-      const svg = `
-        <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="15" cy="15" r="12" fill="${fillColor}" stroke="${strokeColor}" stroke-width="3"/>
-        </svg>
-      `;
-    
-      return L.divIcon({
-        className: 'custom-graffiti-icon',
-        html: svg,
-        iconSize: [30, 30],
-        iconAnchor: [15, 15],
-        popupAnchor: [0, -15]
-      });
+
+      if (tags.includes('politics')) {
+        return 'marker-politics';
+      }
+
+      return 'marker-default';
+    }
+
+    function createMarkerElement(tags) {
+      const element = document.createElement('div');
+      element.className = `graffiti-marker ${getMarkerClass(tags)}`;
+      return element;
     }
 
     function createPopupContent(item) {
@@ -184,7 +228,7 @@
         .join('');
 
       return `
-        <div>
+        <div class="popup-content">
           <div class="popup-title">${originalText || 'Untitled graffiti'}</div>
 
           ${possibleMeaning ? `
@@ -216,7 +260,7 @@
 
     function renderGraffitiItems(items) {
       let validPointsCount = 0;
-      const bounds = [];
+      const bounds = new maplibregl.LngLatBounds();
 
       const firstRow = items[0] || {};
       const columns = Object.keys(firstRow).join(', ');
@@ -242,14 +286,23 @@
         }
 
         const tags = getTags(item);
+        const markerElement = createMarkerElement(tags);
 
-        L.marker([lat, lng], {
-          icon: createMarkerIcon(tags)
+        const popup = new maplibregl.Popup({
+          offset: 18,
+          closeButton: true,
+          closeOnClick: true
+        }).setHTML(createPopupContent(item));
+
+        new maplibregl.Marker({
+          element: markerElement,
+          anchor: 'center'
         })
-          .addTo(map)
-          .bindPopup(createPopupContent(item));
+          .setLngLat([lng, lat]) // MapLibre uses [longitude, latitude]
+          .setPopup(popup)
+          .addTo(map);
 
-        bounds.push([lat, lng]);
+        bounds.extend([lng, lat]);
         validPointsCount += 1;
       });
 
@@ -262,10 +315,11 @@
         First longitude: ${escapeHtml(firstRow.longitude || 'not found')}
       `;
 
-      if (bounds.length > 0) {
+      if (validPointsCount > 0) {
         map.fitBounds(bounds, {
-          padding: [60, 60],
-          maxZoom: 17
+          padding: 80,
+          maxZoom: 17,
+          duration: 600
         });
       }
     }
@@ -280,7 +334,6 @@
 
         const csvText = await response.text();
 
-        // First try: normal CSV from Google Sheets
         let parsed = parseCsv(csvText);
 
         let firstRow = parsed.data[0] || {};
@@ -288,7 +341,6 @@
           Object.prototype.hasOwnProperty.call(firstRow, 'latitude') &&
           Object.prototype.hasOwnProperty.call(firstRow, 'longitude');
 
-        // Fallback: if data was inserted as text separated by |
         if (!hasCoordinates) {
           console.warn('Normal CSV parsing did not find latitude/longitude. Trying pipe delimiter...');
           parsed = parseCsv(csvText, '|');
@@ -314,7 +366,7 @@
       }
     }
 
-    loadCsv();
+    map.on('load', loadCsv);
   </script>
 </body>
 </html>
