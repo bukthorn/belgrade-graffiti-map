@@ -230,23 +230,31 @@
     function createPopupContent(item) {
       const originalText = escapeHtml(item.original_text);
       const possibleMeaning = escapeHtml(item.possible_meaning);
+      const date = escapeHtml(item.date);
       const tags = getTags(item);
-
+    
       const tagsHtml = tags
         .map(tag => `<span class="tag">${escapeHtml(tag)}</span>`)
         .join('');
-
+    
       return `
         <div class="popup-content">
           <div class="popup-title">${originalText || 'Untitled graffiti'}</div>
-
+    
           ${possibleMeaning ? `
             <div class="popup-row">
               <strong>Possible meaning:</strong><br>
               ${possibleMeaning}
             </div>
           ` : ''}
-
+    
+          ${date ? `
+            <div class="popup-row">
+              <strong>Date:</strong><br>
+              ${date}
+            </div>
+          ` : ''}
+    
           ${tags.length ? `
             <div class="popup-row">
               <strong>Tags:</strong><br>
