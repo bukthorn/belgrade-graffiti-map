@@ -40,6 +40,108 @@
       line-height: 1.45;
     }
 
+    .filter-panel {
+      position: absolute;
+      z-index: 10;
+      left: 16px;
+      bottom: 16px;
+      width: 260px;
+      max-height: 45vh;
+      overflow-y: auto;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 18px;
+      box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18);
+      padding: 14px;
+      color: #1f1f1f;
+    }
+
+    .filter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .filter-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .filter-count {
+      font-size: 11px;
+      color: #666;
+      white-space: nowrap;
+    }
+
+    .filter-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: #f7f7f7;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+      user-select: none;
+    }
+
+    .filter-option:hover {
+      background: #eeeeee;
+      border-color: rgba(0, 0, 0, 0.08);
+    }
+
+    .filter-option input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: #111111;
+      cursor: pointer;
+    }
+
+    .filter-label-text {
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .filter-color-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+    }
+
+    .filter-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
+
+    .clear-filters-button {
+      border: none;
+      background: transparent;
+      color: #555;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 4px 0;
+    }
+
+    .clear-filters-button:hover {
+      color: #111;
+      text-decoration: underline;
+    }
+
     .graffiti-marker {
       width: 24px;
       height: 24px;
@@ -65,7 +167,7 @@
       background: #f2c94c;
       border: 3px solid #ffffff;
     }
-    
+
     .marker-default {
       background: #777777;
       border: 3px solid #eeeeee;
@@ -115,6 +217,12 @@
 
 <body>
   <div id="debug" class="debug-panel">Loading CSV...</div>
+  <div id="filterPanel" class="filter-panel">
+    <div class="filter-header">
+      <div class="filter-title">Tags</div>
+      <div class="filter-count">Loading...</div>
+    </div>
+  </div>
   <div id="map"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
@@ -124,10 +232,15 @@
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhpOdfbetAkVGXD_6hKYAEDtuS2yzQfCX3yR-4YubijnBSIaGnByVcmK1LZQ0Nyotn0MiwiJ-8xyjv/pub?gid=0&single=true&output=csv';
 
     const debugPanel = document.getElementById('debug');
+    const filterPanel = document.getElementById('filterPanel');
+
+    let allGraffitiItems = [];
+    let activeMarkers = [];
+    let selectedTags = new Set();
 
     const map = new maplibregl.Map({
       container: 'map',
-      center: [20.4773, 44.8084], // MapLibre uses [longitude, latitude]
+      center: [20.4773, 44.8084],
       zoom: 15.5,
       style: {
         version: 8,
@@ -205,6 +318,16 @@
         .filter(Boolean);
     }
 
+    function getAllTags(items) {
+      const tags = new Set();
+
+      items.forEach(item => {
+        getTags(item).forEach(tag => tags.add(tag));
+      });
+
+      return Array.from(tags).sort();
+    }
+
     function getMarkerClass(tags) {
       if (tags.includes('football')) {
         return 'marker-football';
@@ -221,6 +344,13 @@
       return 'marker-default';
     }
 
+    function getTagColor(tag) {
+      if (tag === 'football') return '#2e7d32';
+      if (tag === 'politics') return '#8b5a2b';
+      if (tag === 'religion') return '#f2c94c';
+      return '#777777';
+    }
+
     function createMarkerElement(tags) {
       const element = document.createElement('div');
       element.className = `graffiti-marker ${getMarkerClass(tags)}`;
@@ -232,29 +362,29 @@
       const possibleMeaning = escapeHtml(item.possible_meaning);
       const date = escapeHtml(item.date);
       const tags = getTags(item);
-    
+
       const tagsHtml = tags
         .map(tag => `<span class="tag">${escapeHtml(tag)}</span>`)
         .join('');
-    
+
       return `
         <div class="popup-content">
           <div class="popup-title">${originalText || 'Untitled graffiti'}</div>
-    
+
           ${possibleMeaning ? `
             <div class="popup-row">
               <strong>Possible meaning:</strong><br>
               ${possibleMeaning}
             </div>
           ` : ''}
-    
+
           ${date ? `
             <div class="popup-row">
               <strong>Date:</strong><br>
               ${date}
             </div>
           ` : ''}
-    
+
           ${tags.length ? `
             <div class="popup-row">
               <strong>Tags:</strong><br>
@@ -275,18 +405,33 @@
       );
     }
 
-    function renderGraffitiItems(items) {
+    function itemMatchesSelectedTags(item) {
+      if (selectedTags.size === 0) {
+        return true;
+      }
+
+      const itemTags = getTags(item);
+
+      return itemTags.some(tag => selectedTags.has(tag));
+    }
+
+    function clearMarkers() {
+      activeMarkers.forEach(marker => marker.remove());
+      activeMarkers = [];
+    }
+
+    function renderGraffitiItems(items, shouldFitBounds = false) {
+      clearMarkers();
+
       let validPointsCount = 0;
       const bounds = new maplibregl.LngLatBounds();
 
       const firstRow = items[0] || {};
       const columns = Object.keys(firstRow).join(', ');
 
-      console.log('CSV columns:', Object.keys(firstRow));
-      console.log('First row:', firstRow);
-      console.log('All rows:', items);
+      const visibleItems = items.filter(itemMatchesSelectedTags);
 
-      items.forEach(item => {
+      visibleItems.forEach(item => {
         const rawLat = item.latitude;
         const rawLng = item.longitude;
 
@@ -311,14 +456,15 @@
           closeOnClick: true
         }).setHTML(createPopupContent(item));
 
-        new maplibregl.Marker({
+        const marker = new maplibregl.Marker({
           element: markerElement,
           anchor: 'center'
         })
-          .setLngLat([lng, lat]) // MapLibre uses [longitude, latitude]
+          .setLngLat([lng, lat])
           .setPopup(popup)
           .addTo(map);
 
+        activeMarkers.push(marker);
         bounds.extend([lng, lat]);
         validPointsCount += 1;
       });
@@ -326,19 +472,92 @@
       debugPanel.innerHTML = `
         CSV loaded<br>
         Rows: ${items.length}<br>
+        Visible rows: ${visibleItems.length}<br>
         Valid points: ${validPointsCount}<br>
         Columns: ${escapeHtml(columns)}<br>
         First latitude: ${escapeHtml(firstRow.latitude || 'not found')}<br>
         First longitude: ${escapeHtml(firstRow.longitude || 'not found')}
       `;
 
-      if (validPointsCount > 0) {
+      if (shouldFitBounds && validPointsCount > 0) {
         map.fitBounds(bounds, {
           padding: 80,
           maxZoom: 17,
           duration: 600
         });
       }
+    }
+
+    function buildTagFilters(items) {
+      const tags = getAllTags(items);
+
+      if (tags.length === 0) {
+        filterPanel.innerHTML = `
+          <div class="filter-header">
+            <div class="filter-title">Tags</div>
+            <div class="filter-count">No tags</div>
+          </div>
+        `;
+        return;
+      }
+
+      const filterOptionsHtml = tags
+        .map(tag => `
+          <label class="filter-option">
+            <input type="checkbox" value="${escapeHtml(tag)}" />
+            <span
+              class="filter-color-dot"
+              style="background: ${getTagColor(tag)}"
+            ></span>
+            <span class="filter-label-text">${escapeHtml(tag)}</span>
+          </label>
+        `)
+        .join('');
+
+      filterPanel.innerHTML = `
+        <div class="filter-header">
+          <div class="filter-title">Tags</div>
+          <div class="filter-count">${tags.length} tags</div>
+        </div>
+
+        <div class="filter-list">
+          ${filterOptionsHtml}
+        </div>
+
+        <div class="filter-actions">
+          <button class="clear-filters-button" type="button">
+            Clear filters
+          </button>
+        </div>
+      `;
+
+      const checkboxes = filterPanel.querySelectorAll('input[type="checkbox"]');
+
+      checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+          const tag = checkbox.value;
+
+          if (checkbox.checked) {
+            selectedTags.add(tag);
+          } else {
+            selectedTags.delete(tag);
+          }
+
+          renderGraffitiItems(allGraffitiItems, false);
+        });
+      });
+
+      const clearButton = filterPanel.querySelector('.clear-filters-button');
+
+      clearButton.addEventListener('click', () => {
+        selectedTags.clear();
+
+        checkboxes.forEach(checkbox => {
+          checkbox.checked = false;
+        });
+
+        renderGraffitiItems(allGraffitiItems, false);
+      });
     }
 
     async function loadCsv() {
@@ -372,7 +591,10 @@
           console.warn('CSV parsing errors:', parsed.errors);
         }
 
-        renderGraffitiItems(parsed.data);
+        allGraffitiItems = parsed.data;
+
+        buildTagFilters(allGraffitiItems);
+        renderGraffitiItems(allGraffitiItems, true);
       } catch (error) {
         console.error(error);
 
