@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Belgrade Graffiti Map</title>
+
+  <link
+    href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css"
+    rel="stylesheet"
+  />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      background: #f4f4f1;
+    }
+
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+
+    .stats-panel {
+      position: absolute;
+      z-index: 10;
+      top: 16px;
+      left: 16px;
+      width: 240px;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      color: #1f1f1f;
+      padding: 14px;
+      border-radius: 18px;
+      font-size: 13px;
+      box-shadow: 0 10px 34px rgba(0, 0, 0, 0.16);
+      line-height: 1.45;
+    }
+
+    .stats-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .stats-card {
+      background: #f7f7f7;
+      border-radius: 12px;
+      padding: 9px 10px;
+    }
+
+    .stats-value {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .stats-label {
+      font-size: 11px;
+      color: #666;
+    }
+
+    .stats-filters {
+      padding-top: 8px;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      font-size: 12px;
+      color: #555;
+    }
+
+    .stats-tag {
+      display: inline-block;
+      margin: 4px 4px 0 0;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #eeeeee;
+      color: #333;
+      font-size: 11px;
+    }
+
+    .filter-panel {
+      position: absolute;
+      z-index: 10;
+      left: 16px;
+      bottom: 16px;
+      width: 260px;
+      max-height: 45vh;
+      overflow-y: auto;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 18px;
+      box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18);
+      padding: 14px;
+      color: #1f1f1f;
+    }
+
+    .filter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .filter-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .filter-count {
+      font-size: 11px;
+      color: #666;
+      white-space: nowrap;
+    }
+
+    .filter-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: #f7f7f7;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+      user-select: none;
+    }
+
+    .filter-option:hover {
+      background: #eeeeee;
+      border-color: rgba(0, 0, 0, 0.08);
+    }
+
+    .filter-option input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: #111111;
+      cursor: pointer;
+    }
+
+    .filter-label-text {
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .filter-color-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+    }
+
+    .filter-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
+
+    .clear-filters-button {
+      border: none;
+      background: transparent;
+      color: #555;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 4px 0;
+    }
+
+    .clear-filters-button:hover {
+      color: #111;
+      text-decoration: underline;
+    }
+
+    .graffiti-marker {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      box-sizing: border-box;
+      cursor: pointer;
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.8),
+        0 4px 14px rgba(0, 0, 0, 0.28);
+    }
+
+    .marker-football {
+      background: #2e7d32;
+      border: 3px solid #ffffff;
+    }
+
+    .marker-politics {
+      background: #8b5a2b;
+      border: 3px solid #d1a06a;
+    }
+
+    .marker-religion {
+      background: #f2c94c;
+      border: 3px solid #ffffff;
+    }
+
+    .marker-default {
+      background: #777777;
+      border: 3px solid #eeeeee;
+    }
+
+    .popup-content {
+      font-family: Arial, sans-serif;
+      color: #1f1f1f;
+      min-width: 180px;
+      max-width: 260px;
+    }
+
+    .popup-title {
+      font-weight: 700;
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .popup-row {
+      margin-bottom: 7px;
+      line-height: 1.4;
+      font-size: 13px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 7px;
+      margin: 2px 4px 2px 0;
+      border-radius: 999px;
+      background: #eeeeee;
+      color: #333333;
+      font-size: 12px;
+    }
+
+    .maplibregl-popup-content {
+      border-radius: 12px;
+      padding: 12px 14px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+    }
+
+    .maplibregl-popup-close-button {
+      font-size: 18px;
+      padding: 4px 7px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="statsPanel" class="stats-panel">Loading data...</div>
+
+  <div id="filterPanel" class="filter-panel">
+    <div class="filter-header">
+      <div class="filter-title">Tags</div>
+      <div class="filter-count">Loading...</div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <script>
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhpOdfbetAkVGXD_6hKYAEDtuS2yzQfCX3yR-4YubijnBSIaGnByVcmK1LZQ0Nyotn0MiwiJ-8xyjv/pub?gid=0&single=true&output=csv';
+
+    const statsPanel = document.getElementById('statsPanel');
+    const filterPanel = document.getElementById('filterPanel');
+
+    let allGraffitiItems = [];
+    let activeMarkers = [];
+    let selectedTags = new Set();
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      center: [20.4773, 44.8084],
+      zoom: 15.5,
+      style: {
+        version: 8,
+        sources: {
+          cartoLight: {
+            type: 'raster',
+            tiles: [
+              'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+          }
+        },
+        layers: [
+          {
+            id: 'carto-light-layer',
+            type: 'raster',
+            source: 'cartoLight',
+            minzoom: 0,
+            maxzoom: 20
+          }
+        ]
+      }
+    });
+
+    map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+
+    function escapeHtml(value) {
+      if (!value) return '';
+
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function cleanHeader(header) {
+      return String(header || '')
+        .replace(/^\uFEFF/, '')
+        .trim()
+        .toLowerCase();
+    }
+
+    function cleanValue(value) {
+      return typeof value === 'string' ? value.trim() : value;
+    }
+
+    function parseCsv(csvText, delimiter = '') {
+      return Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter: delimiter,
+        transformHeader: cleanHeader,
+        transform: cleanValue
+      });
+    }
+
+    function normalizeTag(tag) {
+      return String(tag || '')
+        .trim()
+        .toLowerCase();
+    }
+
+    function getTags(item) {
+      if (!item.tags) return [];
+
+      return String(item.tags)
+        .split(',')
+        .map(normalizeTag)
+        .filter(Boolean);
+    }
+
+    function getAllTags(items) {
+      const tags = new Set();
+
+      items.forEach(item => {
+        getTags(item).forEach(tag => tags.add(tag));
+      });
+
+      return Array.from(tags).sort();
+    }
+
+    function getMarkerClass(tags) {
+      if (tags.includes('football')) {
+        return 'marker-football';
+      }
+
+      if (tags.includes('politics')) {
+        return 'marker-politics';
+      }
+
+      if (tags.includes('religion')) {
+        return 'marker-religion';
+      }
+
+      return 'marker-default';
+    }
+
+    function getTagColor(tag) {
+      if (tag === 'football') return '#2e7d32';
+      if (tag === 'politics') return '#8b5a2b';
+      if (tag === 'religion') return '#f2c94c';
+      return '#777777';
+    }
+
+    function createMarkerElement(tags) {
+      const element = document.createElement('div');
+      element.className = `graffiti-marker ${getMarkerClass(tags)}`;
+      return element;
+    }
+
+    function createPopupContent(item) {
+      const originalText = escapeHtml(item.original_text);
+      const possibleMeaning = escapeHtml(item.possible_meaning);
+      const date = escapeHtml(item.date);
+      const tags = getTags(item);
+
+      const tagsHtml = tags
+        .map(tag => `<span class="tag">${escapeHtml(tag)}</span>`)
+        .join('');
+
+      return `
+        <div class="popup-content">
+          <div class="popup-title">${originalText || 'Untitled graffiti'}</div>
+
+          ${possibleMeaning ? `
+            <div class="popup-row">
+              <strong>Possible meaning:</strong><br>
+              ${possibleMeaning}
+            </div>
+          ` : ''}
+
+          ${date ? `
+            <div class="popup-row">
+              <strong>Date:</strong><br>
+              ${date}
+            </div>
+          ` : ''}
+
+          ${tags.length ? `
+            <div class="popup-row">
+              <strong>Tags:</strong><br>
+              ${tagsHtml}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function parseCoordinate(value) {
+      if (value === null || value === undefined) return NaN;
+
+      return parseFloat(
+        String(value)
+          .trim()
+          .replace(',', '.')
+      );
+    }
+
+    function itemMatchesSelectedTags(item) {
+      if (selectedTags.size === 0) {
+        return true;
+      }
+
+      const itemTags = getTags(item);
+
+      return itemTags.some(tag => selectedTags.has(tag));
+    }
+
+    function clearMarkers() {
+      activeMarkers.forEach(marker => marker.remove());
+      activeMarkers = [];
+    }
+
+    function updateStatsPanel(totalCount, visibleCount, validPointsCount) {
+      const activeTags = Array.from(selectedTags);
+
+      const activeTagsHtml = activeTags.length
+        ? activeTags
+            .map(tag => `<span class="stats-tag">${escapeHtml(tag)}</span>`)
+            .join('')
+        : 'No active filters';
+
+      statsPanel.innerHTML = `
+        <div class="stats-title">Belgrade Graffiti Map</div>
+
+        <div class="stats-grid">
+          <div class="stats-card">
+            <div class="stats-value">${totalCount}</div>
+            <div class="stats-label">Total</div>
+          </div>
+
+          <div class="stats-card">
+            <div class="stats-value">${validPointsCount}</div>
+            <div class="stats-label">Visible</div>
+          </div>
+        </div>
+
+        <div class="stats-filters">
+          <strong>Active filters:</strong><br>
+          ${activeTagsHtml}
+        </div>
+      `;
+    }
+
+    function renderGraffitiItems(items, shouldFitBounds = false) {
+      clearMarkers();
+
+      let validPointsCount = 0;
+      const bounds = new maplibregl.LngLatBounds();
+
+      const visibleItems = items.filter(itemMatchesSelectedTags);
+
+      visibleItems.forEach(item => {
+        const rawLat = item.latitude;
+        const rawLng = item.longitude;
+
+        const lat = parseCoordinate(rawLat);
+        const lng = parseCoordinate(rawLng);
+
+        if (Number.isNaN(lat) || Number.isNaN(lng)) {
+          console.warn('Invalid coordinates:', {
+            row: item,
+            rawLat,
+            rawLng
+          });
+          return;
+        }
+
+        const tags = getTags(item);
+        const markerElement = createMarkerElement(tags);
+
+        const popup = new maplibregl.Popup({
+          offset: 18,
+          closeButton: true,
+          closeOnClick: true
+        }).setHTML(createPopupContent(item));
+
+        const marker = new maplibregl.Marker({
+          element: markerElement,
+          anchor: 'center'
+        })
+          .setLngLat([lng, lat])
+          .setPopup(popup)
+          .addTo(map);
+
+        activeMarkers.push(marker);
+        bounds.extend([lng, lat]);
+        validPointsCount += 1;
+      });
+
+      updateStatsPanel(items.length, visibleItems.length, validPointsCount);
+
+      if (shouldFitBounds && validPointsCount > 0) {
+        map.fitBounds(bounds, {
+          padding: 80,
+          maxZoom: 17,
+          duration: 600
+        });
+      }
+    }
+
+    function buildTagFilters(items) {
+      const tags = getAllTags(items);
+
+      if (tags.length === 0) {
+        filterPanel.innerHTML = `
+          <div class="filter-header">
+            <div class="filter-title">Tags</div>
+            <div class="filter-count">No tags</div>
+          </div>
+        `;
+        return;
+      }
+
+      const filterOptionsHtml = tags
+        .map(tag => `
+          <label class="filter-option">
+            <input type="checkbox" value="${escapeHtml(tag)}" />
+            <span
+              class="filter-color-dot"
+              style="background: ${getTagColor(tag)}"
+            ></span>
+            <span class="filter-label-text">${escapeHtml(tag)}</span>
+          </label>
+        `)
+        .join('');
+
+      filterPanel.innerHTML = `
+        <div class="filter-header">
+          <div class="filter-title">Tags</div>
+          <div class="filter-count">${tags.length} tags</div>
+        </div>
+
+        <div class="filter-list">
+          ${filterOptionsHtml}
+        </div>
+
+        <div class="filter-actions">
+          <button class="clear-filters-button" type="button">
+            Clear filters
+          </button>
+        </div>
+      `;
+
+      const checkboxes = filterPanel.querySelectorAll('input[type="checkbox"]');
+
+      checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+          const tag = checkbox.value;
+
+          if (checkbox.checked) {
+            selectedTags.add(tag);
+          } else {
+            selectedTags.delete(tag);
+          }
+
+          renderGraffitiItems(allGraffitiItems, false);
+        });
+      });
+
+      const clearButton = filterPanel.querySelector('.clear-filters-button');
+
+      clearButton.addEventListener('click', () => {
+        selectedTags.clear();
+
+        checkboxes.forEach(checkbox => {
+          checkbox.checked = false;
+        });
+
+        renderGraffitiItems(allGraffitiItems, false);
+      });
+    }
+
+    async function loadCsv() {
+      try {
+        const response = await fetch(CSV_URL);
+
+        if (!response.ok) {
+          throw new Error(`CSV request failed: ${response.status}`);
+        }
+
+        const csvText = await response.text();
+
+        let parsed = parseCsv(csvText);
+
+        let firstRow = parsed.data[0] || {};
+        let hasCoordinates =
+          Object.prototype.hasOwnProperty.call(firstRow, 'latitude') &&
+          Object.prototype.hasOwnProperty.call(firstRow, 'longitude');
+
+        if (!hasCoordinates) {
+          console.warn('Normal CSV parsing did not find latitude/longitude. Trying pipe delimiter...');
+          parsed = parseCsv(csvText, '|');
+          firstRow = parsed.data[0] || {};
+
+          hasCoordinates =
+            Object.prototype.hasOwnProperty.call(firstRow, 'latitude') &&
+            Object.prototype.hasOwnProperty.call(firstRow, 'longitude');
+        }
+
+        if (parsed.errors.length) {
+          console.warn('CSV parsing errors:', parsed.errors);
+        }
+
+        allGraffitiItems = parsed.data;
+
+        buildTagFilters(allGraffitiItems);
+        renderGraffitiItems(allGraffitiItems, true);
+      } catch (error) {
+        console.error(error);
+
+        statsPanel.innerHTML = `
+          <div class="stats-title">Loading error</div>
+          <div>${escapeHtml(error.message)}</div>
+        `;
+      }
+    }
+
+    map.on('load', loadCsv);
+  </script>
+</body>
+</html>
