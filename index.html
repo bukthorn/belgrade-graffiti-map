@@ -25,19 +25,68 @@
       height: 100vh;
     }
 
-    .debug-panel {
+    .stats-panel {
       position: absolute;
       z-index: 10;
-      top: 12px;
-      left: 12px;
-      background: rgba(255, 255, 255, 0.92);
-      color: #222;
-      padding: 10px 12px;
-      border-radius: 10px;
-      font-size: 12px;
-      max-width: 380px;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      top: 16px;
+      left: 16px;
+      width: 240px;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      color: #1f1f1f;
+      padding: 14px;
+      border-radius: 18px;
+      font-size: 13px;
+      box-shadow: 0 10px 34px rgba(0, 0, 0, 0.16);
       line-height: 1.45;
+    }
+
+    .stats-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .stats-card {
+      background: #f7f7f7;
+      border-radius: 12px;
+      padding: 9px 10px;
+    }
+
+    .stats-value {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .stats-label {
+      font-size: 11px;
+      color: #666;
+    }
+
+    .stats-filters {
+      padding-top: 8px;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      font-size: 12px;
+      color: #555;
+    }
+
+    .stats-tag {
+      display: inline-block;
+      margin: 4px 4px 0 0;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #eeeeee;
+      color: #333;
+      font-size: 11px;
     }
 
     .filter-panel {
@@ -92,7 +141,7 @@
       background: #f7f7f7;
       border: 1px solid transparent;
       cursor: pointer;
-      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+      transition: background 0.15s ease, border-color 0.15s ease;
       user-select: none;
     }
 
@@ -216,13 +265,15 @@
 </head>
 
 <body>
-  <div id="debug" class="debug-panel">Loading CSV...</div>
+  <div id="statsPanel" class="stats-panel">Loading data...</div>
+
   <div id="filterPanel" class="filter-panel">
     <div class="filter-header">
       <div class="filter-title">Tags</div>
       <div class="filter-count">Loading...</div>
     </div>
   </div>
+
   <div id="map"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
@@ -231,7 +282,7 @@
   <script>
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhpOdfbetAkVGXD_6hKYAEDtuS2yzQfCX3yR-4YubijnBSIaGnByVcmK1LZQ0Nyotn0MiwiJ-8xyjv/pub?gid=0&single=true&output=csv';
 
-    const debugPanel = document.getElementById('debug');
+    const statsPanel = document.getElementById('statsPanel');
     const filterPanel = document.getElementById('filterPanel');
 
     let allGraffitiItems = [];
@@ -420,14 +471,42 @@
       activeMarkers = [];
     }
 
+    function updateStatsPanel(totalCount, visibleCount, validPointsCount) {
+      const activeTags = Array.from(selectedTags);
+
+      const activeTagsHtml = activeTags.length
+        ? activeTags
+            .map(tag => `<span class="stats-tag">${escapeHtml(tag)}</span>`)
+            .join('')
+        : 'No active filters';
+
+      statsPanel.innerHTML = `
+        <div class="stats-title">Belgrade Graffiti Map</div>
+
+        <div class="stats-grid">
+          <div class="stats-card">
+            <div class="stats-value">${totalCount}</div>
+            <div class="stats-label">Total</div>
+          </div>
+
+          <div class="stats-card">
+            <div class="stats-value">${validPointsCount}</div>
+            <div class="stats-label">Visible</div>
+          </div>
+        </div>
+
+        <div class="stats-filters">
+          <strong>Active filters:</strong><br>
+          ${activeTagsHtml}
+        </div>
+      `;
+    }
+
     function renderGraffitiItems(items, shouldFitBounds = false) {
       clearMarkers();
 
       let validPointsCount = 0;
       const bounds = new maplibregl.LngLatBounds();
-
-      const firstRow = items[0] || {};
-      const columns = Object.keys(firstRow).join(', ');
 
       const visibleItems = items.filter(itemMatchesSelectedTags);
 
@@ -469,15 +548,7 @@
         validPointsCount += 1;
       });
 
-      debugPanel.innerHTML = `
-        CSV loaded<br>
-        Rows: ${items.length}<br>
-        Visible rows: ${visibleItems.length}<br>
-        Valid points: ${validPointsCount}<br>
-        Columns: ${escapeHtml(columns)}<br>
-        First latitude: ${escapeHtml(firstRow.latitude || 'not found')}<br>
-        First longitude: ${escapeHtml(firstRow.longitude || 'not found')}
-      `;
+      updateStatsPanel(items.length, visibleItems.length, validPointsCount);
 
       if (shouldFitBounds && validPointsCount > 0) {
         map.fitBounds(bounds, {
@@ -598,9 +669,9 @@
       } catch (error) {
         console.error(error);
 
-        debugPanel.innerHTML = `
-          CSV loading error<br>
-          ${escapeHtml(error.message)}
+        statsPanel.innerHTML = `
+          <div class="stats-title">Loading error</div>
+          <div>${escapeHtml(error.message)}</div>
         `;
       }
     }
