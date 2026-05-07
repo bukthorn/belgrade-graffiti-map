@@ -4,8 +4,16 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import App from './App'
 import './styles.css'
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+const rootElement = document.getElementById('root')
+
+if (!rootElement) {
+  throw new Error('Root element not found')
+}
+
+ReactDOM.createRoot(rootElement).render(
+  React.createElement(
+    React.StrictMode,
+    null,
+    React.createElement(App),
+  ),
 )
