@@ -13,7 +13,7 @@ type GraffitiItem = {
   created_at?: string | null
 }
 
-const SUPABASE_URL = 'https://okolcqykqbtyhwihfawj.supabase.co/rest/v1/'
+const SUPABASE_URL = 'https://okolcqykqbtyhwihfawj.supabase.co'
 const SUPABASE_KEY = 'sb_publishable_NHZVWIbAkKE7yRE8QjByEA_Rrhr3erM'
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
