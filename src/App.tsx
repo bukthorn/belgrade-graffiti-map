@@ -1,92 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
-import Papa from 'papaparse'
+import { createClient } from '@supabase/supabase-js'
 
 type GraffitiItem = {
-  latitude?: string
-  longitude?: string
-  original_text?: string
-  possible_meaning?: string
-  tags?: string
-  date?: string
-  [key: string]: string | undefined
+  id?: number
+  latitude?: number
+  longitude?: number
+  original_text?: string | null
+  possible_meaning?: string | null
+  tags?: string[] | null
+  date?: string | null
+  created_at?: string | null
 }
 
-const CSV_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhpOdfbetAkVGXD_6hKYAEDtuS2yzQfCX3yR-4YubijnBSIaGnByVcmK1LZQ0Nyotn0MiwiJ-8xyjv/pub?gid=0&single=true&output=csv'
+const SUPABASE_URL = 'https://okolcqykqbtyhwihfawj.supabase.co/rest/v1/'
+const SUPABASE_KEY = 'sb_publishable_NHZVWIbAkKE7yRE8QjByEA_Rrhr3erM'
 
-function cleanHeader(header: string): string {
-  return String(header || '')
-    .replace(/^\uFEFF/, '')
-    .trim()
-    .toLowerCase()
-}
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
-function cleanValue(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : String(value ?? '')
-}
-
-function parseCsv(csvText: string, delimiter = '') {
-  return Papa.parse(csvText, {
-    header: true,
-    skipEmptyLines: true,
-    delimiter,
-    transformHeader: cleanHeader,
-    transform: cleanValue,
-  })
-}
-
-function hasCoordinateColumns(row: GraffitiItem): boolean {
-  return (
-    Object.prototype.hasOwnProperty.call(row, 'latitude') &&
-    Object.prototype.hasOwnProperty.call(row, 'longitude')
-  )
-}
-
-function removeEmptyRows(items: GraffitiItem[]): GraffitiItem[] {
-  return items.filter((item) =>
-    Object.values(item).some((value) => String(value ?? '').trim() !== ''),
-  )
-}
-
-async function fetchGraffitiItems(): Promise<GraffitiItem[]> {
-  const response = await fetch(CSV_URL)
-
-  if (!response.ok) {
-    throw new Error(`CSV request failed: ${response.status}`)
-  }
-
-  const csvText = await response.text()
-
-  let parsed = parseCsv(csvText)
-  let rows = parsed.data as GraffitiItem[]
-  let firstRow = rows[0] || {}
-
-  if (!hasCoordinateColumns(firstRow)) {
-    parsed = parseCsv(csvText, '|')
-    rows = parsed.data as GraffitiItem[]
-    firstRow = rows[0] || {}
-  }
-
-  if (!hasCoordinateColumns(firstRow)) {
-    throw new Error('CSV does not contain latitude and longitude columns')
-  }
-
-  if (parsed.errors.length > 0) {
-    console.warn('CSV parsing errors:', parsed.errors)
-  }
-
-  return removeEmptyRows(rows)
-}
-
-function parseCoordinate(value: string | undefined): number {
+function parseCoordinate(value: number | undefined): number {
   if (value === null || value === undefined) return Number.NaN
 
-  return Number.parseFloat(
-    String(value)
-      .trim()
-      .replace(',', '.'),
-  )
+  return Number(value)
 }
 
 function normalizeTag(tag: string): string {
@@ -98,8 +33,7 @@ function normalizeTag(tag: string): string {
 function getTags(item: GraffitiItem): string[] {
   if (!item.tags) return []
 
-  return String(item.tags)
-    .split(',')
+  return item.tags
     .map(normalizeTag)
     .filter(Boolean)
 }
@@ -161,7 +95,7 @@ function createMarkerElement(tags: string[]): HTMLDivElement {
   return element
 }
 
-function addPopupRow(parent: HTMLElement, label: string, value?: string) {
+function addPopupRow(parent: HTMLElement, label: string, value?: string | null) {
   if (!value) return
 
   const row = document.createElement('div')
@@ -212,6 +146,21 @@ function createPopupContent(item: GraffitiItem): HTMLElement {
   }
 
   return container
+}
+
+async function fetchGraffitiItems(): Promise<GraffitiItem[]> {
+  const { data, error } = await supabase
+    .from('graffiti')
+    .select(
+      'id, latitude, longitude, original_text, possible_meaning, tags, date, created_at',
+    )
+    .order('id', { ascending: true })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data || []
 }
 
 function App() {
